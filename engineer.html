@@ -73,15 +73,41 @@
       const coordinates = {
         latitude: lat,
         longitude: lon,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        source: "engineer"
       };
       
       // Save to cookie (expires in 7 days)
       const expirationDate = new Date();
       expirationDate.setTime(expirationDate.getTime() + (7 * 24 * 60 * 60 * 1000));
-      document.cookie = `inspectionCoordinates=${JSON.stringify(coordinates)}; expires=${expirationDate.toUTCString()}; path=/`;
+      
+      // Clear any existing coordinate cookie first
+      document.cookie = "inspectionCoordinates=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      
+      // Set the new cookie
+      const cookieValue = `inspectionCoordinates=${JSON.stringify(coordinates)}; expires=${expirationDate.toUTCString()}; path=/`;
+      document.cookie = cookieValue;
       
       console.log("Coordinates saved to cookie:", coordinates);
+      console.log("Cookie string:", cookieValue);
+      
+      // Verify the cookie was saved
+      setTimeout(() => {
+        const savedCookie = getCookieValue('inspectionCoordinates');
+        console.log("Verification - cookie saved as:", savedCookie);
+      }, 100);
+    }
+
+    // Helper function to get cookie value
+    function getCookieValue(cookieName) {
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === cookieName) {
+          return decodeURIComponent(value);
+        }
+      }
+      return null;
     }
 
     // Function to update coordinates display
