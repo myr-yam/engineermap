@@ -90,6 +90,7 @@
       coordsText.innerHTML = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
     }
 
+    // Listen for both create and update events
     sketch.on("create", function(event) {
       if (event.state === "complete") {
         const geometry = event.graphic.geometry;
@@ -113,32 +114,47 @@
           "*"
         );
         
-        console.log("Coordinates selected:", lat, lon);
+        console.log("Coordinates selected and saved:", lat, lon);
       }
     });
 
-    // Optional: Load previous coordinates if available
-    function loadPreviousCoordinates() {
-      const cookies = document.cookie.split(';');
-      for (let cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'inspectionCoordinates') {
-          try {
-            const coordinates = JSON.parse(decodeURIComponent(value));
-            console.log("Previous coordinates found:", coordinates);
-            // You can optionally center the map on previous coordinates
-            // view.center = [coordinates.longitude, coordinates.latitude];
-          } catch (e) {
-            console.log("Error parsing previous coordinates:", e);
-          }
-          break;
-        }
-      }
-    }
+    // Also listen for update events when moving existing points
+    sketch.on("update", function(event) {
+      if (event.state === "complete") {
+        const geometry = event.graphics[0].geometry;
+        const lon = geometry.longitude;
+        const lat = geometry.latitude;
 
-    // Load previous coordinates when map is ready
-    view.when(() => {
-      loadPreviousCoordinates();
+        // Update display
+        updateCoordinatesDisplay(lat, lon);
+        
+        // Save coordinates to cookie
+        saveCoordinatesToCookie(lat, lon);
+
+        // Send updated coordinates
+        window.parent.postMessage(
+          {
+            type: "coordinateSelected",
+            coordinates: `${lat.toFixed(6)}, ${lon.toFixed(6)}`,
+            latitude: lat,
+            longitude: lon
+          },
+          "*"
+        );
+        
+        console.log("Coordinates updated and saved:", lat, lon);
+      }
+    });
+
+    // Alternative: Listen to direct map clicks
+    view.on("click", function(event) {
+      const point = event.mapPoint;
+      const lat = point.latitude;
+      const lon = point.longitude;
+      
+      // Update display immediately on click
+      updateCoordinatesDisplay(lat, lon);
+      console.log("Map clicked at:", lat, lon);
     });
   });
 </script>
