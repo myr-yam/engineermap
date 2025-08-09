@@ -1,79 +1,147 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <title>Engineer Map</title>
-  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
-  <script src="https://js.arcgis.com/4.29/"></script>
-  <style>
-    html, body, #viewDiv { height: 100%; margin: 0; padding: 0; }
-    #sketchDiv {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 99;
-      background: white;
-      padding: 10px;
-      border-radius: 6px;
-    }
-  </style>
-</head>
-<body>
-  <div id="viewDiv"></div>
-  <div id="sketchDiv"></div>
+  <head>
+    <meta charset="utf-8" />
+    <title>ArcGIS Map in Joget - Engineer</title>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.29/"></script>
+    <style>
+      html, body, #viewDiv { height: 100%; margin: 0; padding: 0; }
+      #sketchDiv {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 99;
+        background: white;
+        padding: 10px;
+        border-radius: 6px;
+      }
+      #coordinatesDisplay {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        z-index: 99;
+        background: white;
+        padding: 10px;
+        border-radius: 6px;
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewDiv"></div>
+    <div id="sketchDiv"></div>
+    <div id="coordinatesDisplay">
+      <strong>Selected Coordinates:</strong>
+      <div id="coordsText">Click on map to select location</div>
+    </div>
+    
+    <script>
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/widgets/Sketch",
+    "esri/layers/GraphicsLayer"
+  ], function(Map, MapView, Sketch, GraphicsLayer) {
+    
+    const graphicsLayer = new GraphicsLayer();
 
-  <script>
-    require([
-      "esri/Map",
-      "esri/views/MapView",
-      "esri/widgets/Sketch",
-      "esri/layers/GraphicsLayer"
-    ], function(Map, MapView, Sketch, GraphicsLayer) {
-
-      const graphicsLayer = new GraphicsLayer();
-
-      const map = new Map({
-        basemap: "topo-vector",
-        layers: [graphicsLayer]
-      });
-
-      const view = new MapView({
-        container: "viewDiv",
-        map: map,
-        center: [31.8, 30.4],  // Default center
-        zoom: 8
-      });
-
-      const sketch = new Sketch({
-        layer: graphicsLayer,
-        view: view,
-        creationMode: "update",
-        availableCreateTools: ["point"],
-        container: "sketchDiv"
-      });
-
-      // When engineer clicks/draws a point
-      sketch.on("create", function(event) {
-        if (event.state === "complete") {
-          const geometry = event.graphic.geometry;
-          const lon = geometry.longitude;
-          const lat = geometry.latitude;
-
-          // Save to localStorage for supervisor
-          localStorage.setItem("engineerCoords", JSON.stringify({ lat, lon }));
-
-          // Send coordinates to Joget (if inside iframe)
-          window.parent.postMessage(
-            {
-              type: "coordinateSelected",
-              coordinates: `${lat.toFixed(6)}, ${lon.toFixed(6)}`
-            },
-            "*"
-          );
-        }
-      });
+    const map = new Map({
+      basemap: "topo-vector",
+      layers: [graphicsLayer]
     });
-  </script>
-</body>
+
+    const view = new MapView({
+      container: "viewDiv",
+      map: map,
+      center: [31.8, 30.4],  // Default center (Egypt)
+      zoom: 8
+    });
+
+    const sketch = new Sketch({
+      layer: graphicsLayer,
+      view: view,
+      creationMode: "update",
+      availableCreateTools: ["point"],
+      container: "sketchDiv"
+    });
+
+    // Function to save coordinates to cookies
+    function saveCoordinatesToCookie(lat, lon) {
+      const coordinates = {
+        latitude: lat,
+        longitude: lon,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Save to cookie (expires in 7 days)
+      const expirationDate = new Date();
+      expirationDate.setTime(expirationDate.getTime() + (7 * 24 * 60 * 60 * 1000));
+      document.cookie = `inspectionCoordinates=${JSON.stringify(coordinates)}; expires=${expirationDate.toUTCString()}; path=/`;
+      
+      console.log("Coordinates saved to cookie:", coordinates);
+    }
+
+    // Function to update coordinates display
+    function updateCoordinatesDisplay(lat, lon) {
+      const coordsText = document.getElementById('coordsText');
+      coordsText.innerHTML = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
+    }
+
+    sketch.on("create", function(event) {
+      if (event.state === "complete") {
+        const geometry = event.graphic.geometry;
+        const lon = geometry.longitude;
+        const lat = geometry.latitude;
+
+        // Update display
+        updateCoordinatesDisplay(lat, lon);
+        
+        // Save coordinates to cookie for supervisor access
+        saveCoordinatesToCookie(lat, lon);
+
+        // Send selected coordinates back to Joget form
+        window.parent.postMessage(
+          {
+            type: "coordinateSelected",
+            coordinates: `${lat.toFixed(6)}, ${lon.toFixed(6)}`,
+            latitude: lat,
+            longitude: lon
+          },
+          "*"
+        );
+        
+        console.log("Coordinates selected:", lat, lon);
+      }
+    });
+
+    // Optional: Load previous coordinates if available
+    function loadPreviousCoordinates() {
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'inspectionCoordinates') {
+          try {
+            const coordinates = JSON.parse(decodeURIComponent(value));
+            console.log("Previous coordinates found:", coordinates);
+            // You can optionally center the map on previous coordinates
+            // view.center = [coordinates.longitude, coordinates.latitude];
+          } catch (e) {
+            console.log("Error parsing previous coordinates:", e);
+          }
+          break;
+        }
+      }
+    }
+
+    // Load previous coordinates when map is ready
+    view.when(() => {
+      loadPreviousCoordinates();
+    });
+  });
+</script>
+
+  </body>
 </html>
