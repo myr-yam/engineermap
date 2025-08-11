@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>Engineer Inspection Form - ArcGIS Map</title>
-    <meta name="viewport" initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
     <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
     <script src="https://js.arcgis.com/4.29/"></script>
     <style>
@@ -87,6 +87,20 @@
         max-width: 250px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       }
+
+      #formInfo {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 99;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 10px;
+        border-radius: 6px;
+        font-family: Arial, sans-serif;
+        font-size: 11px;
+        max-width: 200px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      }
     </style>
   </head>
   <body>
@@ -95,6 +109,11 @@
     <div id="instructions">
       <strong>📍 Instructions:</strong><br>
       Click anywhere on the map to select the inspection site location
+    </div>
+
+    <div id="formInfo">
+      <strong>📋 Form ID:</strong><br>
+      <span id="currentFormId">Loading...</span>
     </div>
     
     <div id="coordinatesPanel">
@@ -117,6 +136,47 @@ require([
   const graphicsLayer = new GraphicsLayer();
   let selectedCoordinates = null;
   let currentGraphic = null;
+  let currentFormId = null;
+
+  // Get or generate form ID
+  function getFormId() {
+    // Try to get form ID from Joget form field
+    try {
+      const formIdElement = window.parent.document.querySelector('[name="form_id"]');
+      if (formIdElement && formIdElement.value) {
+        return formIdElement.value;
+      }
+    } catch (e) {
+      console.log("Could not access parent form:", e);
+    }
+
+    // Try to get from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const formIdFromUrl = urlParams.get('formId');
+    if (formIdFromUrl) {
+      return formIdFromUrl;
+    }
+
+    // Generate new UUID if none exists
+    const newFormId = 'form_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    
+    // Try to set it back to the parent form
+    try {
+      const formIdElement = window.parent.document.querySelector('[name="form_id"]');
+      if (formIdElement) {
+        formIdElement.value = newFormId;
+      }
+    } catch (e) {
+      console.log("Could not set form ID in parent:", e);
+    }
+    
+    return newFormId;
+  }
+
+  // Initialize form ID
+  currentFormId = getFormId();
+  document.getElementById('currentFormId').textContent = currentFormId;
+  console.log("Form ID:", currentFormId);
 
   const map = new Map({
     basemap: "topo-vector",
@@ -166,11 +226,12 @@ require([
       symbol: pointSymbol,
       attributes: {
         title: "Inspection Location",
-        coordinates: `${lat.toFixed(6)}, ${lon.toFixed(6)}`
+        coordinates: `${lat.toFixed(6)}, ${lon.toFixed(6)}`,
+        formId: currentFormId
       },
       popupTemplate: {
         title: "Inspection Site",
-        content: `<b>Coordinates:</b><br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}`
+        content: `<b>Coordinates:</b><br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}<br><b>Form ID:</b> ${currentFormId}`
       }
     });
 
@@ -193,6 +254,26 @@ require([
     showStatus("Location selected! Click 'Save Location' to confirm.", "success");
   });
 
+  // Function to save coordinates to Joget form
+  function saveToJogetForm(inspectionData) {
+    try {
+      // Update Joget form fields
+      const coordinatesLatField = window.parent.document.querySelector('[name="coordinates_lat"]');
+      const coordinatesLngField = window.parent.document.querySelector('[name="coordinates_lng"]');
+      const formIdField = window.parent.document.querySelector('[name="form_id"]');
+
+      if (coordinatesLatField) coordinatesLatField.value = inspectionData.latitude;
+      if (coordinatesLngField) coordinatesLngField.value = inspectionData.longitude;
+      if (formIdField) formIdField.value = inspectionData.formId;
+
+      console.log("Updated Joget form fields");
+      return true;
+    } catch (error) {
+      console.error("Error updating Joget form:", error);
+      return false;
+    }
+  }
+
   // Function to save coordinates
   window.saveCoordinates = function() {
     if (!selectedCoordinates) {
@@ -201,6 +282,7 @@ require([
     }
 
     const inspectionData = {
+      formId: currentFormId,
       latitude: selectedCoordinates.latitude,
       longitude: selectedCoordinates.longitude,
       timestamp: new Date().toISOString(),
@@ -208,29 +290,25 @@ require([
       status: "submitted"
     };
 
-    // Save to multiple storage methods for reliability
+    // Save to Joget form (primary method)
+    const jogetSaved = saveToJogetForm(inspectionData);
+
+    // Save locally as backup
+    const storageKey = `inspection_${currentFormId}`;
     try {
-      // Method 1: localStorage
-      localStorage.setItem('inspectionCoordinates', JSON.stringify(inspectionData));
+      window.localStorage.setItem(storageKey, JSON.stringify(inspectionData));
       
-      // Method 2: sessionStorage
-      sessionStorage.setItem('inspectionCoordinates', JSON.stringify(inspectionData));
-      
-      // Method 3: Cookie
-      const expirationDate = new Date();
-      expirationDate.setTime(expirationDate.getTime() + (7 * 24 * 60 * 60 * 1000)); // 7 days
-      document.cookie = `inspectionCoordinates=${JSON.stringify(inspectionData)}; expires=${expirationDate.toUTCString()}; path=/; SameSite=Lax`;
-      
-      // Method 4: Send to parent window (Joget form)
+      // Send to parent window
       if (window.parent) {
         window.parent.postMessage({
           type: "inspectionCoordinates",
+          formId: currentFormId,
           data: inspectionData
         }, "*");
       }
 
-      console.log("Coordinates saved successfully:", inspectionData);
-      showStatus("✅ Location saved successfully! Supervisor will see this location.", "success");
+      console.log("Coordinates saved for form:", currentFormId, inspectionData);
+      showStatus(`✅ Location saved successfully! Form ID: ${currentFormId.slice(-8)}`, "success");
       
     } catch (error) {
       console.error("Error saving coordinates:", error);
@@ -253,15 +331,21 @@ require([
     document.getElementById('saveStatus').style.display = 'none';
     
     // Clear from storage
+    const storageKey = `inspection_${currentFormId}`;
     try {
-      localStorage.removeItem('inspectionCoordinates');
-      sessionStorage.removeItem('inspectionCoordinates');
-      document.cookie = "inspectionCoordinates=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
+      window.localStorage.removeItem(storageKey);
+      
+      // Clear Joget form fields
+      const coordinatesLatField = window.parent.document.querySelector('[name="coordinates_lat"]');
+      const coordinatesLngField = window.parent.document.querySelector('[name="coordinates_lng"]');
+      
+      if (coordinatesLatField) coordinatesLatField.value = '';
+      if (coordinatesLngField) coordinatesLngField.value = '';
     } catch (e) {
       console.log("Error clearing storage:", e);
     }
     
-    console.log("Coordinates cleared");
+    console.log("Coordinates cleared for form:", currentFormId);
   };
 
   // Function to show status messages
@@ -281,13 +365,27 @@ require([
 
   // Load existing coordinates on startup
   view.when(() => {
+    const storageKey = `inspection_${currentFormId}`;
     try {
-      // Try to load from localStorage first
-      let savedData = localStorage.getItem('inspectionCoordinates');
+      // Try to load from localStorage
+      let savedData = localStorage.getItem(storageKey);
       
+      // Try to get from Joget form fields
       if (!savedData) {
-        // Try sessionStorage
-        savedData = sessionStorage.getItem('inspectionCoordinates');
+        try {
+          const latField = window.parent.document.querySelector('[name="coordinates_lat"]');
+          const lngField = window.parent.document.querySelector('[name="coordinates_lng"]');
+          
+          if (latField && lngField && latField.value && lngField.value) {
+            savedData = JSON.stringify({
+              latitude: parseFloat(latField.value),
+              longitude: parseFloat(lngField.value),
+              formId: currentFormId
+            });
+          }
+        } catch (e) {
+          console.log("Could not access Joget form fields:", e);
+        }
       }
       
       if (savedData) {
