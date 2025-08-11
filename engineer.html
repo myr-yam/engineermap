@@ -1,409 +1,103 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Engineer Inspection Form - ArcGIS Map</title>
-    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
-    <script src="https://js.arcgis.com/4.29/"></script>
-    <style>
-      html, body, #viewDiv { height: 100%; margin: 0; padding: 0; }
-      
-      #coordinatesPanel {
-        position: absolute;
-        bottom: 10px;
-        left: 10px;
-        z-index: 99;
-        background: rgba(255, 255, 255, 0.95);
-        padding: 15px;
-        border-radius: 8px;
-        font-family: Arial, sans-serif;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        min-width: 300px;
-      }
-      
-      .panel-title {
-        font-weight: bold;
-        color: #333;
-        margin-bottom: 10px;
-        font-size: 14px;
-      }
-      
-      .coord-display {
-        background: #e8f4fd;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 10px;
-        font-family: monospace;
-        font-size: 13px;
-        color: #0066cc;
-        border-left: 4px solid #0066cc;
-      }
-      
-      .save-button {
-        background: #28a745;
-        color: white;
-        border: none;
-        padding: 8px 15px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
-        margin-right: 10px;
-      }
-      
-      .save-button:hover {
-        background: #218838;
-      }
-      
-      .status {
-        font-size: 11px;
-        margin-top: 5px;
-        padding: 5px;
-        border-radius: 3px;
-      }
-      
-      .status.success {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-      
-      .status.error {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-      
-      #instructions {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        z-index: 99;
-        background: rgba(255, 255, 255, 0.95);
-        padding: 10px;
-        border-radius: 6px;
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-        max-width: 250px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      }
+<head>
+  <meta charset="utf-8" />
+  <title>Engineer Inspection Map</title>
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.29/"></script>
+  <style>
+    html, body, #viewDiv { height: 100%; margin: 0; padding: 0; }
+    #coordinatesPanel {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      z-index: 99;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 10px;
+      border-radius: 6px;
+      font-family: Arial, sans-serif;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .save-button {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+    .save-button:hover { background: #218838; }
+  </style>
+</head>
+<body>
+  <div id="viewDiv"></div>
+  <div id="coordinatesPanel">
+    <div><strong>Selected Location:</strong></div>
+    <div id="coordsDisplay">Click on the map to select</div>
+    <button class="save-button" onclick="saveCoordinates()">💾 Save Location</button>
+  </div>
 
-      #formInfo {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        z-index: 99;
-        background: rgba(255, 255, 255, 0.95);
-        padding: 10px;
-        border-radius: 6px;
-        font-family: Arial, sans-serif;
-        font-size: 11px;
-        max-width: 200px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      }
-    </style>
-  </head>
-  <body>
-    <div id="viewDiv"></div>
-    
-    <div id="instructions">
-      <strong>📍 Instructions:</strong><br>
-      Click anywhere on the map to select the inspection site location
-    </div>
-
-    <div id="formInfo">
-      <strong>📋 Form ID:</strong><br>
-      <span id="currentFormId">Loading...</span>
-    </div>
-    
-    <div id="coordinatesPanel">
-      <div class="panel-title">📌 Selected Inspection Location</div>
-      <div id="coordsDisplay" class="coord-display">Click on map to select location</div>
-      <button class="save-button" onclick="saveCoordinates()">💾 Save Location</button>
-      <button class="save-button" onclick="clearCoordinates()" style="background:#dc3545;">🗑️ Clear</button>
-      <div id="saveStatus" class="status" style="display:none;"></div>
-    </div>
-    
-    <script>
+<script>
 require([
-  "esri/Map",
-  "esri/views/MapView",
-  "esri/layers/GraphicsLayer",
-  "esri/Graphic",
-  "esri/geometry/Point"
+  "esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Graphic", "esri/geometry/Point"
 ], function(Map, MapView, GraphicsLayer, Graphic, Point) {
-  
+
+  const formId = new URLSearchParams(window.location.search).get("form_id");
+  const map = new Map({ basemap: "topo-vector" });
   const graphicsLayer = new GraphicsLayer();
-  let selectedCoordinates = null;
-  let currentGraphic = null;
-  let currentFormId = null;
-
-  // Get or generate form ID
-  function getFormId() {
-    // Try to get form ID from Joget form field
-    try {
-      const formIdElement = window.parent.document.querySelector('[name="form_id"]');
-      if (formIdElement && formIdElement.value) {
-        return formIdElement.value;
-      }
-    } catch (e) {
-      console.log("Could not access parent form:", e);
-    }
-
-    // Try to get from URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const formIdFromUrl = urlParams.get('formId');
-    if (formIdFromUrl) {
-      return formIdFromUrl;
-    }
-
-    // Generate new UUID if none exists
-    const newFormId = 'form_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-    
-    // Try to set it back to the parent form
-    try {
-      const formIdElement = window.parent.document.querySelector('[name="form_id"]');
-      if (formIdElement) {
-        formIdElement.value = newFormId;
-      }
-    } catch (e) {
-      console.log("Could not set form ID in parent:", e);
-    }
-    
-    return newFormId;
-  }
-
-  // Initialize form ID
-  currentFormId = getFormId();
-  document.getElementById('currentFormId').textContent = currentFormId;
-  console.log("Form ID:", currentFormId);
-
-  const map = new Map({
-    basemap: "topo-vector",
-    layers: [graphicsLayer]
-  });
+  map.add(graphicsLayer);
 
   const view = new MapView({
     container: "viewDiv",
     map: map,
-    center: [31.2357, 30.0444], // Cairo, Egypt
+    center: [31.2357, 30.0444], // Cairo default
     zoom: 10
   });
 
-  // Symbol for selected point
   const pointSymbol = {
     type: "simple-marker",
-    color: [255, 0, 0], // Red
+    color: [255, 0, 0],
     size: 12,
-    outline: {
-      color: [255, 255, 255],
-      width: 2
-    }
+    outline: { color: [255, 255, 255], width: 2 }
   };
 
-  // Function to update coordinate display
-  function updateCoordinateDisplay(lat, lon) {
-    const coordsText = `Latitude: ${lat.toFixed(6)}\nLongitude: ${lon.toFixed(6)}`;
-    document.getElementById('coordsDisplay').innerHTML = coordsText.replace('\n', '<br>');
-    selectedCoordinates = { latitude: lat, longitude: lon };
-  }
+  let selectedCoordinates = null;
 
-  // Function to add/update point on map
-  function addPointToMap(lat, lon) {
-    // Remove existing point
-    if (currentGraphic) {
-      graphicsLayer.remove(currentGraphic);
-    }
-
-    // Create new point
-    const point = new Point({
-      longitude: lon,
-      latitude: lat
-    });
-
-    currentGraphic = new Graphic({
-      geometry: point,
-      symbol: pointSymbol,
-      attributes: {
-        title: "Inspection Location",
-        coordinates: `${lat.toFixed(6)}, ${lon.toFixed(6)}`,
-        formId: currentFormId
-      },
-      popupTemplate: {
-        title: "Inspection Site",
-        content: `<b>Coordinates:</b><br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}<br><b>Form ID:</b> ${currentFormId}`
-      }
-    });
-
-    graphicsLayer.add(currentGraphic);
-  }
-
-  // Map click event
   view.on("click", function(event) {
-    const point = event.mapPoint;
-    const lat = point.latitude;
-    const lon = point.longitude;
-    
-    console.log("Map clicked at:", lat, lon);
-    
-    // Update display and map
-    updateCoordinateDisplay(lat, lon);
-    addPointToMap(lat, lon);
-    
-    // Show status
-    showStatus("Location selected! Click 'Save Location' to confirm.", "success");
+    const lat = event.mapPoint.latitude;
+    const lon = event.mapPoint.longitude;
+    selectedCoordinates = { latitude: lat, longitude: lon };
+
+    graphicsLayer.removeAll();
+    graphicsLayer.add(new Graphic({
+      geometry: new Point({ longitude: lon, latitude: lat }),
+      symbol: pointSymbol
+    }));
+
+    document.getElementById("coordsDisplay").innerHTML = 
+      `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
   });
 
-  // Function to save coordinates to Joget form
-  function saveToJogetForm(inspectionData) {
-    try {
-      // Update Joget form fields
-      const coordinatesLatField = window.parent.document.querySelector('[name="coordinates_lat"]');
-      const coordinatesLngField = window.parent.document.querySelector('[name="coordinates_lng"]');
-      const formIdField = window.parent.document.querySelector('[name="form_id"]');
-
-      if (coordinatesLatField) coordinatesLatField.value = inspectionData.latitude;
-      if (coordinatesLngField) coordinatesLngField.value = inspectionData.longitude;
-      if (formIdField) formIdField.value = inspectionData.formId;
-
-      console.log("Updated Joget form fields");
-      return true;
-    } catch (error) {
-      console.error("Error updating Joget form:", error);
-      return false;
-    }
-  }
-
-  // Function to save coordinates
   window.saveCoordinates = function() {
     if (!selectedCoordinates) {
-      showStatus("Please select a location on the map first!", "error");
+      alert("Please select a location first.");
       return;
     }
-
-    const inspectionData = {
-      formId: currentFormId,
-      latitude: selectedCoordinates.latitude,
-      longitude: selectedCoordinates.longitude,
-      timestamp: new Date().toISOString(),
-      formType: "inspection",
-      status: "submitted"
-    };
-
-    // Save to Joget form (primary method)
-    const jogetSaved = saveToJogetForm(inspectionData);
-
-    // Save locally as backup
-    const storageKey = `inspection_${currentFormId}`;
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(inspectionData));
-      
-      // Send to parent window
-      if (window.parent) {
-        window.parent.postMessage({
-          type: "inspectionCoordinates",
-          formId: currentFormId,
-          data: inspectionData
-        }, "*");
-      }
-
-      console.log("Coordinates saved for form:", currentFormId, inspectionData);
-      showStatus(`✅ Location saved successfully! Form ID: ${currentFormId.slice(-8)}`, "success");
-      
-    } catch (error) {
-      console.error("Error saving coordinates:", error);
-      showStatus("❌ Error saving location. Please try again.", "error");
+    // Send data to Joget hidden fields
+    if (window.parent) {
+      window.parent.postMessage({
+        type: "inspectionCoordinates",
+        form_id: formId,
+        lat: selectedCoordinates.latitude,
+        lng: selectedCoordinates.longitude
+      }, "*");
     }
+    alert("Coordinates saved to form.");
   };
-
-  // Function to clear coordinates
-  window.clearCoordinates = function() {
-    selectedCoordinates = null;
-    
-    // Clear from map
-    if (currentGraphic) {
-      graphicsLayer.remove(currentGraphic);
-      currentGraphic = null;
-    }
-    
-    // Clear displays
-    document.getElementById('coordsDisplay').innerHTML = "Click on map to select location";
-    document.getElementById('saveStatus').style.display = 'none';
-    
-    // Clear from storage
-    const storageKey = `inspection_${currentFormId}`;
-    try {
-      window.localStorage.removeItem(storageKey);
-      
-      // Clear Joget form fields
-      const coordinatesLatField = window.parent.document.querySelector('[name="coordinates_lat"]');
-      const coordinatesLngField = window.parent.document.querySelector('[name="coordinates_lng"]');
-      
-      if (coordinatesLatField) coordinatesLatField.value = '';
-      if (coordinatesLngField) coordinatesLngField.value = '';
-    } catch (e) {
-      console.log("Error clearing storage:", e);
-    }
-    
-    console.log("Coordinates cleared for form:", currentFormId);
-  };
-
-  // Function to show status messages
-  function showStatus(message, type) {
-    const statusDiv = document.getElementById('saveStatus');
-    statusDiv.innerHTML = message;
-    statusDiv.className = `status ${type}`;
-    statusDiv.style.display = 'block';
-    
-    // Auto-hide success messages after 3 seconds
-    if (type === 'success') {
-      setTimeout(() => {
-        statusDiv.style.display = 'none';
-      }, 3000);
-    }
-  }
-
-  // Load existing coordinates on startup
-  view.when(() => {
-    const storageKey = `inspection_${currentFormId}`;
-    try {
-      // Try to load from localStorage
-      let savedData = localStorage.getItem(storageKey);
-      
-      // Try to get from Joget form fields
-      if (!savedData) {
-        try {
-          const latField = window.parent.document.querySelector('[name="coordinates_lat"]');
-          const lngField = window.parent.document.querySelector('[name="coordinates_lng"]');
-          
-          if (latField && lngField && latField.value && lngField.value) {
-            savedData = JSON.stringify({
-              latitude: parseFloat(latField.value),
-              longitude: parseFloat(lngField.value),
-              formId: currentFormId
-            });
-          }
-        } catch (e) {
-          console.log("Could not access Joget form fields:", e);
-        }
-      }
-      
-      if (savedData) {
-        const coordinates = JSON.parse(savedData);
-        updateCoordinateDisplay(coordinates.latitude, coordinates.longitude);
-        addPointToMap(coordinates.latitude, coordinates.longitude);
-        view.goTo({
-          center: [coordinates.longitude, coordinates.latitude],
-          zoom: 15
-        });
-        showStatus("Previous location loaded", "success");
-      }
-    } catch (error) {
-      console.log("No previous coordinates found or error loading:", error);
-    }
-  });
 });
 </script>
-
-  </body>
+</body>
 </html>
