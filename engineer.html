@@ -2,97 +2,84 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Engineer Map Picker</title>
+  <title>Engineer Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- ArcGIS -->
   <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/light/main.css" />
   <script src="https://js.arcgis.com/4.27/"></script>
-
   <style>
     html, body, #viewDiv { height: 100%; margin: 0; padding: 0; }
-    .custom-toolbar {
-      position: absolute;
-      top: 10px; right: 10px;
-      background: white; padding: 6px;
-      border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      z-index: 99; display: flex; flex-direction: column; gap: 4px;
-      width: 120px;
+    .toolbar {
+      position: absolute; top: 10px; right: 10px; background: white;
+      padding: 6px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      z-index: 99; display: flex; flex-direction: column; gap: 4px; width: 120px;
     }
-    .custom-toolbar button { padding: 4px; font-size: 12px; cursor: pointer; }
+    .toolbar button { padding: 4px; font-size: 12px; cursor: pointer; }
   </style>
 </head>
 <body>
   <div id="viewDiv"></div>
-
-  <div class="custom-toolbar">
-    <button id="saveLocationBtn">Save Location</button>
+  <div class="toolbar">
+    <button id="saveBtn">Save Location</button>
     <button id="clearBtn">Clear</button>
   </div>
+<script>
+require([
+  "esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Graphic"
+], function(Map, MapView, GraphicsLayer, Graphic) {
 
-  <script>
-    require([
-      "esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Graphic"
-    ], function(Map, MapView, GraphicsLayer, Graphic) {
+  const params = new URLSearchParams(window.location.search);
+  const formId = params.get("form_id") || "";
+  let selectedLat = parseFloat(params.get("lat")) || 25.276987;
+  let selectedLng = parseFloat(params.get("lng")) || 55.296249;
+  const sketchesData = params.get("sketches") ? JSON.parse(decodeURIComponent(params.get("sketches"))) : [];
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const formId = urlParams.get("form_id") || "";
-      const sketchesData = urlParams.get("sketches") ? JSON.parse(decodeURIComponent(urlParams.get("sketches"))) : [];
-      let selectedLat = parseFloat(urlParams.get("lat")) || 25.276987;
-      let selectedLng = parseFloat(urlParams.get("lng")) || 55.296249;
+  const graphicsLayer = new GraphicsLayer();
+  const sketchLayer = new GraphicsLayer();
 
-      const graphicsLayer = new GraphicsLayer();
-      const map = new Map({ basemap: "streets-navigation-vector", layers: [graphicsLayer] });
+  const map = new Map({ basemap: "streets-navigation-vector", layers: [graphicsLayer, sketchLayer] });
+  const view = new MapView({ container: "viewDiv", map, center: [selectedLng, selectedLat], zoom: 16 });
 
-      const view = new MapView({
-        container: "viewDiv", map: map,
-        center: [selectedLng, selectedLat], zoom: 16
-      });
+  // Add engineer marker if exists
+  if (params.get("lat") && params.get("lng")) addMarker(selectedLat, selectedLng);
 
-      // Show saved location
-      if (urlParams.get("lat") && urlParams.get("lng")) {
-        addMarker(selectedLat, selectedLng);
-      }
+  // Add supervisor sketches if any
+  sketchesData.forEach(g => {
+    sketchLayer.add(new Graphic({
+      geometry: g.geometry,
+      symbol: g.symbol
+    }));
+  });
 
-      // Show supervisor's sketches
-      sketchesData.forEach(sk => graphicsLayer.add(new Graphic(sk)));
+  view.on("click", evt => {
+    selectedLat = evt.mapPoint.latitude;
+    selectedLng = evt.mapPoint.longitude;
+    addMarker(selectedLat, selectedLng);
+  });
 
-      // Click to select new location
-      view.on("click", function(event) {
-        selectedLat = event.mapPoint.latitude;
-        selectedLng = event.mapPoint.longitude;
-        addMarker(selectedLat, selectedLng);
-      });
+  function addMarker(lat, lng) {
+    graphicsLayer.removeAll();
+    graphicsLayer.add(new Graphic({
+      geometry: { type: "point", longitude: lng, latitude: lat },
+      symbol: { type: "simple-marker", color: "blue", size: "12px" }
+    }));
+  }
 
-      function addMarker(lat, lng) {
-        graphicsLayer.graphics.removeAll();
-        graphicsLayer.add(new Graphic({
-          geometry: { type: "point", longitude: lng, latitude: lat },
-          symbol: { type: "simple-marker", color: "blue", size: "12px" }
-        }));
-        sketchesData.forEach(sk => graphicsLayer.add(new Graphic(sk)));
-      }
+  document.getElementById("saveBtn").onclick = () => {
+    if (!selectedLat || !selectedLng) return alert("Select a location first.");
+    window.parent.postMessage({
+      type: "saveEngineerLocation",
+      form_id: formId,
+      coordinates_lat: selectedLat,
+      coordinates_lng: selectedLng
+    }, "*");
+    alert("Location saved.");
+  };
 
-      document.getElementById("saveLocationBtn").addEventListener("click", () => {
-        if (!selectedLat || !selectedLng) {
-          alert("Please select a location first.");
-          return;
-        }
-        window.parent.postMessage({
-          type: "engineerLocation",
-          form_id: formId,
-          coordinates_lat: selectedLat,
-          coordinates_lng: selectedLng
-        }, "*");
-        alert("Location saved.");
-      });
-
-      document.getElementById("clearBtn").addEventListener("click", () => {
-        graphicsLayer.graphics.removeAll();
-        selectedLat = null;
-        selectedLng = null;
-      });
-    });
-  </script>
+  document.getElementById("clearBtn").onclick = () => {
+    graphicsLayer.removeAll();
+    selectedLat = null; selectedLng = null;
+  };
+});
+</script>
 </body>
 </html>
