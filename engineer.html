@@ -1,103 +1,126 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <title>Engineer Inspection Map</title>
-  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
-  <script src="https://js.arcgis.com/4.29/"></script>
-  <style>
-    html, body, #viewDiv { height: 100%; margin: 0; padding: 0; }
-    #coordinatesPanel {
-      position: absolute;
-      bottom: 10px;
-      left: 10px;
-      z-index: 99;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 10px;
-      border-radius: 6px;
-      font-family: Arial, sans-serif;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-    .save-button {
-      background: #28a745;
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      margin-top: 6px;
-    }
-    .save-button:hover { background: #218838; }
-  </style>
-</head>
-<body>
-  <div id="viewDiv"></div>
-  <div id="coordinatesPanel">
-    <div><strong>Selected Location:</strong></div>
-    <div id="coordsDisplay">Click on the map to select</div>
-    <button class="save-button" onclick="saveCoordinates()">💾 Save Location</button>
-  </div>
+  <head>
+    <meta charset="utf-8" />
+    <title>Engineer Map Picker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script>
-require([
-  "esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Graphic", "esri/geometry/Point"
-], function(Map, MapView, GraphicsLayer, Graphic, Point) {
+    <!-- ArcGIS -->
+    <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.27/"></script>
 
-  const formId = new URLSearchParams(window.location.search).get("form_id");
-  const map = new Map({ basemap: "topo-vector" });
-  const graphicsLayer = new GraphicsLayer();
-  map.add(graphicsLayer);
+    <style>
+      html, body, #viewDiv {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .custom-toolbar {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: white;
+        padding: 6px;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        z-index: 99;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 120px;
+      }
+      .custom-toolbar button {
+        padding: 4px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewDiv"></div>
 
-  const view = new MapView({
-    container: "viewDiv",
-    map: map,
-    center: [31.2357, 30.0444], // Cairo default
-    zoom: 10
-  });
+    <!-- Toolbar -->
+    <div class="custom-toolbar">
+      <button id="saveLocationBtn">Save Location</button>
+      <button id="clearBtn">Clear</button>
+    </div>
 
-  const pointSymbol = {
-    type: "simple-marker",
-    color: [255, 0, 0],
-    size: 12,
-    outline: { color: [255, 255, 255], width: 2 }
-  };
+    <script>
+      require([
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/layers/GraphicsLayer",
+        "esri/Graphic"
+      ], function(Map, MapView, GraphicsLayer, Graphic) {
 
-  let selectedCoordinates = null;
+        // Get form ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const formId = urlParams.get("form_id") || "";
 
-  view.on("click", function(event) {
-    const lat = event.mapPoint.latitude;
-    const lon = event.mapPoint.longitude;
-    selectedCoordinates = { latitude: lat, longitude: lon };
+        // Default coordinates (Dubai as fallback)
+        let selectedLat = parseFloat(urlParams.get("lat")) || 25.276987;
+        let selectedLng = parseFloat(urlParams.get("lng")) || 55.296249;
 
-    graphicsLayer.removeAll();
-    graphicsLayer.add(new Graphic({
-      geometry: new Point({ longitude: lon, latitude: lat }),
-      symbol: pointSymbol
-    }));
+        const graphicsLayer = new GraphicsLayer();
 
-    document.getElementById("coordsDisplay").innerHTML = 
-      `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
-  });
+        const map = new Map({
+          basemap: "streets-navigation-vector",
+          layers: [graphicsLayer]
+        });
 
-  window.saveCoordinates = function() {
-    if (!selectedCoordinates) {
-      alert("Please select a location first.");
-      return;
-    }
-    // Send data to Joget hidden fields
-    if (window.parent) {
-      window.parent.postMessage({
-        type: "inspectionCoordinates",
-        form_id: formId,
-        lat: selectedCoordinates.latitude,
-        lng: selectedCoordinates.longitude
-      }, "*");
-    }
-    alert("Coordinates saved to form.");
-  };
-});
-</script>
-</body>
+        const view = new MapView({
+          container: "viewDiv",
+          map: map,
+          center: [selectedLng, selectedLat],
+          zoom: 16
+        });
+
+        // If coordinates already exist, place marker
+        if (urlParams.get("lat") && urlParams.get("lng")) {
+          addMarker(selectedLat, selectedLng);
+        }
+
+        // Click to select location
+        view.on("click", function(event) {
+          const lat = event.mapPoint.latitude;
+          const lng = event.mapPoint.longitude;
+          selectedLat = lat;
+          selectedLng = lng;
+          addMarker(lat, lng);
+        });
+
+        function addMarker(lat, lng) {
+          graphicsLayer.removeAll();
+          graphicsLayer.add(new Graphic({
+            geometry: { type: "point", longitude: lng, latitude: lat },
+            symbol: { type: "simple-marker", color: "blue", size: "12px" }
+          }));
+        }
+
+        // Save button
+        document.getElementById("saveLocationBtn").addEventListener("click", () => {
+          if (!selectedLat || !selectedLng) {
+            alert("Please select a location on the map first.");
+            return;
+          }
+
+          window.parent.postMessage({
+            type: "engineerLocation",
+            form_id: formId,
+            coordinates_lat: selectedLat,
+            coordinates_lng: selectedLng
+          }, "*");
+
+          alert("Location saved to Joget.");
+        });
+
+        // Clear button
+        document.getElementById("clearBtn").addEventListener("click", () => {
+          graphicsLayer.removeAll();
+          selectedLat = null;
+          selectedLng = null;
+        });
+      });
+    </script>
+  </body>
 </html>
