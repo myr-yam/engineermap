@@ -88,6 +88,17 @@ require([
     graphicsLayer.removeAll();
     selectedLat = null; selectedLng = null;
   };
+   window.addEventListener("message", function(event) { debugger
+    if (!event.data) return;
+
+    if (event.data.type === "zoomToEngineerLocation") {
+      lat = parseFloat(event.data.coordinates_lat);
+      lng = parseFloat(event.data.coordinates_lng);
+
+      view.goTo({ center: [lng, lat], zoom: 16 });
+      addEngineerMarker(lng, lat);
+    }
+  });
 });
 </script>
 </body>
