@@ -29,20 +29,22 @@ require([
 
   const params = new URLSearchParams(window.location.search);
  
-  let selectedLng = parseFloat(params.get("lng")) ;
-  let selectedLat = parseFloat(params.get("lat")) ;
+  let selectedLng = parseFloat(params.get("lng")) || 25;
+  let selectedLat = parseFloat(params.get("lat")) || 50;
   
   const graphicsLayer = new GraphicsLayer();
  
 
-  const map = new Map({ basemap: "streets-navigation-vector", layers: [graphicsLayer, sketchLayer] });
+  const map = new Map({ basemap: "streets-navigation-vector", layers: [graphicsLayer] });
   const view = new MapView({ container: "viewDiv", map, center: [selectedLng, selectedLat], zoom: 16 });
 
 
   view.when(()=>{
     debugger;
+    if (selectedLat && selectedLng){
     view.goTo({ center: [selectedLng,selectedLat ], zoom: 16 });
      addMarker(selectedLat, selectedLng);
+    }
 })
 
 
