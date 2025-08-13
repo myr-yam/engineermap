@@ -29,35 +29,22 @@ require([
 
   const params = new URLSearchParams(window.location.search);
  
-  //let selectedLat = parseFloat(params.get("lat")) || 25.276987;
   let selectedLng = parseFloat(params.get("lng")) ;
   let selectedLat = parseFloat(params.get("lat")) ;
   
-      
-  const sketchesData = params.get("sketches") ? JSON.parse(decodeURIComponent(params.get("sketches"))) : [];
-
   const graphicsLayer = new GraphicsLayer();
-  const sketchLayer = new GraphicsLayer();
+ 
 
   const map = new Map({ basemap: "streets-navigation-vector", layers: [graphicsLayer, sketchLayer] });
   const view = new MapView({ container: "viewDiv", map, center: [selectedLng, selectedLat], zoom: 16 });
 
-  // Add engineer marker if exists
-  if (params.get("lat") && params.get("lng")) addMarker(selectedLat, selectedLng);
+
   view.when(()=>{
     debugger;
     view.goTo({ center: [selectedLng,selectedLat ], zoom: 16 });
-      addEngineerMarker(lng, lat);
+     addMarker(selectedLat, selectedLng);
 })
 
-
-  // Add supervisor sketches if any
-  sketchesData.forEach(g => {
-    sketchLayer.add(new Graphic({
-      geometry: g.geometry,
-      symbol: g.symbol
-    }));
-  });
 
   view.on("click", evt => {
     selectedLat = evt.mapPoint.latitude;
@@ -80,29 +67,13 @@ require([
     }));
   }
 
-//  document.getElementById("saveBtn").onclick = () => {
-  //  if (!selectedLat || !selectedLng) return alert("Select a location first.");
-   // window.parent.postMessage({
-    //  type: "saveEngineerLocation",
-     // form_id: formId,
-      //coordinates_lat: selectedLat,
-      //coordinates_lng: selectedLng
-    //}, "*");
-    // alert("Location saved.");
-//  };
 
   document.getElementById("clearBtn").onclick = () => {
     graphicsLayer.removeAll();
     selectedLat = null; selectedLng = null;
   };
-   window.addEventListener("message", function(event) { debugger
-    if (!event.data) return;
-
-    if (event.data.type === "zoomToEngineerLocation") {
-      lat = parseFloat(event.data.coordinates_lat);
-      lng = parseFloat(event.data.coordinates_lng);
-
-    }
+  
+ 
   });
 });
 </script>
