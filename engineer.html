@@ -56,6 +56,13 @@ require([
     selectedLat = evt.mapPoint.latitude;
     selectedLng = evt.mapPoint.longitude;
     addMarker(selectedLat, selectedLng);
+     if (!selectedLat || !selectedLng) return alert("Select a location first.");
+    window.parent.postMessage({
+      type: "saveEngineerLocation",
+      form_id: formId,
+      coordinates_lat: selectedLat,
+      coordinates_lng: selectedLng
+    }, "*");
   });
 
   function addMarker(lat, lng) {
@@ -66,14 +73,14 @@ require([
     }));
   }
 
-  document.getElementById("saveBtn").onclick = () => {
-    if (!selectedLat || !selectedLng) return alert("Select a location first.");
-    window.parent.postMessage({
-      type: "saveEngineerLocation",
-      form_id: formId,
-      coordinates_lat: selectedLat,
-      coordinates_lng: selectedLng
-    }, "*");
+//  document.getElementById("saveBtn").onclick = () => {
+  //  if (!selectedLat || !selectedLng) return alert("Select a location first.");
+   // window.parent.postMessage({
+    //  type: "saveEngineerLocation",
+     // form_id: formId,
+      //coordinates_lat: selectedLat,
+      //coordinates_lng: selectedLng
+    //}, "*");
     // alert("Location saved.");
   };
 
