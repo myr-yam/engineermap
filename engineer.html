@@ -29,7 +29,7 @@ require([
 
   const params = new URLSearchParams(window.location.search);
   const formId = params.get("form_id") || "";
-  //let selectedLat = parseFloat(params.get("lat")) || 25.276987;
+  let selectedLat = parseFloat(params.get("lat")) || 25.276987;
   //let selectedLng = parseFloat(params.get("lng")) ;
   //alert("found"+selectedLng);
   let selectedLng = parseFloat(params.get("lng")) || 55.296249;
