@@ -28,11 +28,12 @@ require([
 ], function(Map, MapView, GraphicsLayer, Graphic) {
 
   const params = new URLSearchParams(window.location.search);
-  const formId = params.get("form_id") || "";
-  let selectedLat = parseFloat(params.get("lat")) || 25.276987;
-  //let selectedLng = parseFloat(params.get("lng")) ;
-  //alert("found"+selectedLng);
-  let selectedLng = parseFloat(params.get("lng")) || 55.296249;
+ 
+  //let selectedLat = parseFloat(params.get("lat")) || 25.276987;
+  let selectedLng = parseFloat(params.get("lng")) ;
+  let selectedLat = parseFloat(params.get("lat")) ;
+  
+      
   const sketchesData = params.get("sketches") ? JSON.parse(decodeURIComponent(params.get("sketches"))) : [];
 
   const graphicsLayer = new GraphicsLayer();
@@ -43,6 +44,12 @@ require([
 
   // Add engineer marker if exists
   if (params.get("lat") && params.get("lng")) addMarker(selectedLat, selectedLng);
+  view.when(()=>{
+    debugger;
+    view.goTo({ center: [selectedLng,selectedLat ], zoom: 16 });
+      addEngineerMarker(lng, lat);
+})
+
 
   // Add supervisor sketches if any
   sketchesData.forEach(g => {
@@ -95,8 +102,6 @@ require([
       lat = parseFloat(event.data.coordinates_lat);
       lng = parseFloat(event.data.coordinates_lng);
 
-      view.goTo({ center: [lng, lat], zoom: 16 });
-      addEngineerMarker(lng, lat);
     }
   });
 });
