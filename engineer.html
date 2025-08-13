@@ -53,9 +53,9 @@ require([
     selectedLng = evt.mapPoint.longitude;
     addMarker(selectedLat, selectedLng);
      if (!selectedLat || !selectedLng) return alert("Select a location first.");
+   
     window.parent.postMessage({
       type: "saveEngineerLocation",
-      form_id: formId,
       coordinates_lat: selectedLat,
       coordinates_lng: selectedLng
     }, "*");
